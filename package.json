@@ -6,20 +6,28 @@
   "scripts": {
     "dev": "vite",
     "build": "tsc -b && vite build",
+    "cap:sync": "cap sync android",
+    "cap:copy": "cap copy android",
+    "cap:add:android": "cap add android",
     "lint": "eslint .",
     "preview": "vite preview"
   },
   "dependencies": {
+    "@capacitor/android": "^8.3.0",
+    "@capacitor/core": "^8.3.0",
+    "@capacitor/splash-screen": "^8.0.1",
     "@emotion/react": "^11.14.0",
     "@emotion/styled": "^11.14.1",
     "@mui/icons-material": "^9.0.0",
     "@mui/material": "^9.0.0",
     "axios": "^1.15.0",
+    "firebase": "^12.13.0",
     "react": "^19.2.4",
     "react-dom": "^19.2.4"
   },
   "devDependencies": {
     "@babel/core": "^7.29.0",
+    "@capacitor/cli": "^8.3.0",
     "@eslint/js": "^9.39.4",
     "@rolldown/plugin-babel": "^0.2.2",
     "@types/babel__core": "^7.20.5",

@@ -1,73 +1,279 @@
-import React, { useState } from 'react';
+import React, { useMemo, useState } from 'react';
 import {
+  Alert,
+  Avatar,
   Box,
-  Typography,
+  Button,
   Card,
   CardContent,
-  Avatar,
-  TextField,
-  Button,
+  Chip,
+  Divider,
   List,
   ListItem,
   ListItemIcon,
   ListItemText,
-  Chip,
   Stack,
+  Tab,
+  Tabs,
+  TextField,
+  Typography,
 } from '@mui/material';
-import PersonIcon from '@mui/icons-material/Person';
-import HistoryIcon from '@mui/icons-material/History';
-import DeleteIcon from '@mui/icons-material/Delete';
 import BarChartIcon from '@mui/icons-material/BarChart';
+import DeleteIcon from '@mui/icons-material/Delete';
+import HistoryIcon from '@mui/icons-material/History';
+import LockIcon from '@mui/icons-material/Lock';
+import LoginIcon from '@mui/icons-material/Login';
+import LogoutIcon from '@mui/icons-material/Logout';
 import StorageIcon from '@mui/icons-material/Storage';
-import { useLocalStorage } from '../../hooks/useLocalStorage';
-import { getInitials, formatDate } from '../../utils/helpers';
-
-interface UserProfile {
-  username: string;
-  email: string;
-}
+import PersonAddIcon from '@mui/icons-material/PersonAdd';
+import PersonIcon from '@mui/icons-material/Person';
+import { useAuth } from '../../context/AuthContext';
+import { formatDate, getInitials } from '../../utils/helpers';
 
 const UsuarioPage: React.FC = () => {
-  const [userProfile, setUserProfile] = useLocalStorage<UserProfile>('userProfile', {
-    username: 'Usuario Disney',
-    email: 'usuario@disney.com',
-  });
+  const {
+    profile,
+    loading,
+    authError,
+    register,
+    login,
+    logout,
+    removeSearchHistoryItem,
+    clearSearchHistory,
+    sendResetEmail,
+    clearAuthError,
+  } = useAuth();
 
-  const [searchHistory] = useLocalStorage<Array<{ query: string; timestamp: number }>>(
-    'searchHistory',
-    []
+  const [tab, setTab] = useState(0);
+  const [registerForm, setRegisterForm] = useState({
+    displayName: '',
+    email: '',
+    password: '',
+    confirmPassword: '',
+  });
+  const [loginForm, setLoginForm] = useState({ email: '', password: '' });
+  const [resetEmail, setResetEmail] = useState('');
+  const [localMessage, setLocalMessage] = useState<string | null>(null);
+
+  const favoritesCount = profile?.favorites.length ?? 0;
+  const searchHistory = profile?.searchHistory ?? [];
+
+  const headerSubtitle = useMemo(
+    () =>
+      profile
+        ? 'Gestiona tu cuenta, favoritos y búsquedas sincronizadas'
+        : 'Crea tu cuenta o inicia sesión para guardar tus datos por usuario',
+    [profile],
   );
 
-  const [favorites] = useLocalStorage<number[]>('favorites', []);
-  const [isEditing, setIsEditing] = useState(false);
-  const [editedProfile, setEditedProfile] = useState(userProfile);
+  const handleRegister = async (event: React.FormEvent) => {
+    event.preventDefault();
+    clearAuthError();
+    setLocalMessage(null);
 
-  const handleSaveProfile = () => {
-    setUserProfile(editedProfile);
-    setIsEditing(false);
+    if (registerForm.password !== registerForm.confirmPassword) {
+      setLocalMessage('Las contraseñas no coinciden.');
+      return;
+    }
+
+    try {
+      await register(registerForm.displayName, registerForm.email, registerForm.password);
+      setRegisterForm({ displayName: '', email: '', password: '', confirmPassword: '' });
+      setLocalMessage('Cuenta creada correctamente.');
+    } catch {
+      setLocalMessage('No se pudo crear la cuenta.');
+    }
   };
 
-  const handleDeleteHistoryItem = (timestamp: number) => {
-    console.log('Delete history item:', timestamp);
+  const handleLogin = async (event: React.FormEvent) => {
+    event.preventDefault();
+    clearAuthError();
+    setLocalMessage(null);
+    try {
+      await login(loginForm.email, loginForm.password);
+      setLoginForm({ email: '', password: '' });
+    } catch {
+      setLocalMessage('No se pudo iniciar sesión.');
+    }
   };
+
+  const handlePasswordReset = async () => {
+    if (!resetEmail.trim()) return;
+    clearAuthError();
+    try {
+      await sendResetEmail(resetEmail);
+      setLocalMessage('Se envió un correo para restablecer la contraseña.');
+    } catch {
+      setLocalMessage('No se pudo enviar el correo de recuperación.');
+    }
+  };
+
+  const handleLogout = async () => {
+    try {
+      await logout();
+    } catch {
+      setLocalMessage('No se pudo cerrar sesión.');
+    }
+  };
+
+  if (loading) {
+    return (
+      <Box sx={{ display: 'flex', justifyContent: 'center', py: 8 }}>
+        <Typography variant="body2" color="text.secondary">
+          Cargando usuario...
+        </Typography>
+      </Box>
+    );
+  }
+
+  if (!profile) {
+    return (
+      <Box>
+        <Box sx={{ mb: 3 }}>
+          <Typography variant="h4" component="h1" sx={{ fontWeight: 700, mb: 0.5 }}>
+            Usuario
+          </Typography>
+          <Typography variant="body2" color="text.secondary">
+            {headerSubtitle}
+          </Typography>
+        </Box>
+
+        <Card sx={{ borderRadius: 3 }}>
+          <CardContent>
+            <Tabs
+              value={tab}
+              onChange={(_, value) => setTab(value)}
+              variant="fullWidth"
+              sx={{ mb: 2 }}
+            >
+              <Tab icon={<PersonAddIcon />} iconPosition="start" label="Registro" />
+              <Tab icon={<LoginIcon />} iconPosition="start" label="Login" />
+            </Tabs>
+
+            {(authError || localMessage) && (
+              <Alert
+                severity={authError ? 'error' : 'info'}
+                sx={{ mb: 2, borderRadius: 2 }}
+                onClose={authError ? clearAuthError : undefined}
+              >
+                {authError || localMessage}
+              </Alert>
+            )}
+
+            {tab === 0 ? (
+              <Box component="form" onSubmit={handleRegister} sx={{ display: 'grid', gap: 2 }}>
+                <TextField
+                  label="Nombre"
+                  value={registerForm.displayName}
+                  onChange={(e) => {
+                    setRegisterForm({ ...registerForm, displayName: e.target.value });
+                    setLocalMessage(null);
+                  }}
+                  required
+                  fullWidth
+                />
+                <TextField
+                  label="Correo electrónico"
+                  type="email"
+                  value={registerForm.email}
+                  onChange={(e) => {
+                    setRegisterForm({ ...registerForm, email: e.target.value });
+                    setLocalMessage(null);
+                  }}
+                  required
+                  fullWidth
+                />
+                <TextField
+                  label="Contraseña"
+                  type="password"
+                  value={registerForm.password}
+                  onChange={(e) => {
+                    setRegisterForm({ ...registerForm, password: e.target.value });
+                    setLocalMessage(null);
+                  }}
+                  required
+                  fullWidth
+                />
+                <TextField
+                  label="Confirmar contraseña"
+                  type="password"
+                  value={registerForm.confirmPassword}
+                  onChange={(e) => {
+                    setRegisterForm({ ...registerForm, confirmPassword: e.target.value });
+                    setLocalMessage(null);
+                  }}
+                  required
+                  fullWidth
+                />
+                <Button type="submit" variant="contained" startIcon={<PersonIcon />} sx={{ borderRadius: 2 }}>
+                  Crear cuenta
+                </Button>
+              </Box>
+            ) : (
+              <Box component="form" onSubmit={handleLogin} sx={{ display: 'grid', gap: 2 }}>
+                <TextField
+                  label="Correo electrónico"
+                  type="email"
+                  value={loginForm.email}
+                  onChange={(e) => {
+                    setLoginForm({ ...loginForm, email: e.target.value });
+                    setLocalMessage(null);
+                  }}
+                  required
+                  fullWidth
+                />
+                <TextField
+                  label="Contraseña"
+                  type="password"
+                  value={loginForm.password}
+                  onChange={(e) => {
+                    setLoginForm({ ...loginForm, password: e.target.value });
+                    setLocalMessage(null);
+                  }}
+                  required
+                  fullWidth
+                />
+                <Button type="submit" variant="contained" startIcon={<LockIcon />} sx={{ borderRadius: 2 }}>
+                  Iniciar sesión
+                </Button>
+              </Box>
+            )}
+
+            <Divider sx={{ my: 3 }} />
+
+            <Box sx={{ display: 'grid', gap: 2 }}>
+              <Typography variant="subtitle2" sx={{ fontWeight: 700 }}>
+                Recuperar contraseña
+              </Typography>
+              <TextField
+                label="Correo para recuperación"
+                type="email"
+                value={resetEmail}
+                onChange={(e) => setResetEmail(e.target.value)}
+                fullWidth
+                size="small"
+              />
+              <Button variant="outlined" onClick={handlePasswordReset} sx={{ borderRadius: 2 }}>
+                Enviar enlace
+              </Button>
+            </Box>
+          </CardContent>
+        </Card>
+      </Box>
+    );
+  }
 
   return (
     <Box>
-      {/* Header */}
       <Box sx={{ mb: 3 }}>
-        <Typography
-          variant="h4"
-          component="h1"
-          sx={{ fontWeight: 700, color: 'text.primary', mb: 0.5 }}
-        >
+        <Typography variant="h4" component="h1" sx={{ fontWeight: 700, color: 'text.primary', mb: 0.5 }}>
           Perfil de Usuario
         </Typography>
         <Typography variant="body2" color="text.secondary">
-          Gestiona tu información y preferencias
+          {headerSubtitle}
         </Typography>
       </Box>
 
-      {/* Profile Card */}
       <Card sx={{ mb: 3, borderRadius: 3 }}>
         <CardContent>
           <Box sx={{ display: 'flex', alignItems: 'center', mb: 3 }}>
@@ -81,86 +287,28 @@ const UsuarioPage: React.FC = () => {
                 fontWeight: 700,
               }}
             >
-              {getInitials(userProfile.username)}
+              {getInitials(profile.displayName)}
             </Avatar>
-            <Box>
+            <Box sx={{ textAlign: 'left' }}>
               <Typography variant="h6" sx={{ fontWeight: 700 }}>
-                {userProfile.username}
+                {profile.displayName}
               </Typography>
               <Typography variant="body2" color="text.secondary">
-                {userProfile.email}
+                {profile.email}
               </Typography>
-              <Chip
-                label={`${favorites.length} Favoritos`}
-                size="small"
-                color="error"
-                variant="outlined"
-                sx={{ mt: 0.75 }}
-              />
+              <Stack direction="row" spacing={1} sx={{ mt: 1, flexWrap: 'wrap' }}>
+                <Chip label={`${favoritesCount} favoritos`} size="small" color="error" variant="outlined" />
+                <Chip label={`${searchHistory.length} búsquedas`} size="small" color="primary" variant="outlined" />
+              </Stack>
             </Box>
           </Box>
 
-          {isEditing ? (
-            <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
-              <TextField
-                label="Nombre de Usuario"
-                value={editedProfile.username}
-                onChange={(e) =>
-                  setEditedProfile({ ...editedProfile, username: e.target.value })
-                }
-                fullWidth
-                size="small"
-                sx={{ '& .MuiOutlinedInput-root': { borderRadius: 2 } }}
-              />
-              <TextField
-                label="Correo Electrónico"
-                type="email"
-                value={editedProfile.email}
-                onChange={(e) =>
-                  setEditedProfile({ ...editedProfile, email: e.target.value })
-                }
-                fullWidth
-                size="small"
-                sx={{ '& .MuiOutlinedInput-root': { borderRadius: 2 } }}
-              />
-              <Stack direction="row" spacing={1}>
-                <Button
-                  variant="contained"
-                  color="primary"
-                  onClick={handleSaveProfile}
-                  size="small"
-                  sx={{ borderRadius: 2 }}
-                >
-                  Guardar
-                </Button>
-                <Button
-                  variant="outlined"
-                  onClick={() => {
-                    setIsEditing(false);
-                    setEditedProfile(userProfile);
-                  }}
-                  size="small"
-                  sx={{ borderRadius: 2 }}
-                >
-                  Cancelar
-                </Button>
-              </Stack>
-            </Box>
-          ) : (
-            <Button
-              variant="outlined"
-              startIcon={<PersonIcon />}
-              onClick={() => setIsEditing(true)}
-              fullWidth
-              sx={{ borderRadius: 2 }}
-            >
-              Editar Perfil
-            </Button>
-          )}
+          <Button variant="outlined" startIcon={<LogoutIcon />} onClick={handleLogout} fullWidth sx={{ borderRadius: 2 }}>
+            Cerrar sesión
+          </Button>
         </CardContent>
       </Card>
 
-      {/* Statistics */}
       <Card sx={{ mb: 3, borderRadius: 3 }}>
         <CardContent>
           <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 2 }}>
@@ -170,65 +318,55 @@ const UsuarioPage: React.FC = () => {
             </Typography>
           </Box>
           <Stack direction="row" spacing={2}>
-            <Box
-              sx={{
-                flex: 1,
-                p: 1.5,
-                backgroundColor: 'action.hover',
-                borderRadius: 2,
-                textAlign: 'center',
-              }}
-            >
+            <Box sx={{ flex: 1, p: 1.5, backgroundColor: 'action.hover', borderRadius: 2, textAlign: 'center' }}>
               <Typography variant="h4" sx={{ fontWeight: 800, color: 'error.main', lineHeight: 1 }}>
-                {favorites.length}
+                {favoritesCount}
               </Typography>
               <Typography variant="caption" color="text.secondary">
-                Favoritos Guardados
+                Favoritos guardados
               </Typography>
             </Box>
-            <Box
-              sx={{
-                flex: 1,
-                p: 1.5,
-                backgroundColor: 'action.hover',
-                borderRadius: 2,
-                textAlign: 'center',
-              }}
-            >
+            <Box sx={{ flex: 1, p: 1.5, backgroundColor: 'action.hover', borderRadius: 2, textAlign: 'center' }}>
               <Typography variant="h4" sx={{ fontWeight: 800, color: 'primary.main', lineHeight: 1 }}>
                 {searchHistory.length}
               </Typography>
               <Typography variant="caption" color="text.secondary">
-                Búsquedas Realizadas
+                Búsquedas realizadas
               </Typography>
             </Box>
           </Stack>
         </CardContent>
       </Card>
 
-      {/* Search History */}
       <Card sx={{ borderRadius: 3 }}>
         <CardContent>
-          <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 2 }}>
-            <HistoryIcon color="primary" fontSize="small" />
-            <Typography variant="h6" sx={{ fontWeight: 700 }}>
-              Historial de Búsquedas
-            </Typography>
+          <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 2, mb: 2 }}>
+            <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+              <HistoryIcon color="primary" fontSize="small" />
+              <Typography variant="h6" sx={{ fontWeight: 700 }}>
+                Historial de búsquedas
+              </Typography>
+            </Box>
+            {searchHistory.length > 0 && (
+              <Button size="small" onClick={clearSearchHistory} sx={{ borderRadius: 2 }}>
+                Limpiar todo
+              </Button>
+            )}
           </Box>
 
           {searchHistory.length === 0 ? (
             <Typography variant="body2" color="text.secondary">
-              No hay búsquedas recientes.
+              No hay búsquedas guardadas para este usuario.
             </Typography>
           ) : (
             <List disablePadding>
               {searchHistory.map((item, index) => (
                 <ListItem
-                  key={index}
+                  key={item.id}
                   secondaryAction={
                     <Button
                       size="small"
-                      onClick={() => handleDeleteHistoryItem(item.timestamp)}
+                      onClick={() => removeSearchHistoryItem(item.id)}
                       sx={{ p: 0, minWidth: 'auto', color: 'text.disabled' }}
                     >
                       <DeleteIcon fontSize="small" />
@@ -259,7 +397,6 @@ const UsuarioPage: React.FC = () => {
         </CardContent>
       </Card>
 
-      {/* Info Footer */}
       <Box
         sx={{
           mt: 3,
@@ -275,7 +412,7 @@ const UsuarioPage: React.FC = () => {
       >
         <StorageIcon fontSize="small" color="primary" />
         <Typography variant="caption" color="text.secondary">
-          Tu información se guarda localmente en tu dispositivo
+          Tus favoritos y búsquedas se guardan en Firebase por cada usuario.
         </Typography>
       </Box>
     </Box>

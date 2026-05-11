@@ -15,15 +15,17 @@ import MovieIcon from '@mui/icons-material/Movie';
 import TvIcon from '@mui/icons-material/Tv';
 import type { DisneyCharacter } from '../../types';
 import CharacterCard from '../../components/CharacterCard';
-import { useLocalStorage } from '../../hooks/useLocalStorage';
 import disneyAPI from '../../services/disneyAPI';
+import { useAuth } from '../../context/AuthContext';
 
 const FavoritosPage: React.FC = () => {
-  const [favorites, setFavorites] = useLocalStorage<number[]>('favorites', []);
   const [favoriteCharacters, setFavoriteCharacters] = useState<DisneyCharacter[]>([]);
   const [loading, setLoading] = useState(false);
   const [selectedCharacter, setSelectedCharacter] = useState<DisneyCharacter | null>(null);
   const [openDialog, setOpenDialog] = useState(false);
+  const { profile, toggleFavorite, loading: authLoading } = useAuth();
+
+  const favorites = React.useMemo(() => profile?.favorites ?? [], [profile?.favorites]);
 
   useEffect(() => {
     loadFavorites();
@@ -54,9 +56,8 @@ const FavoritosPage: React.FC = () => {
     }
   };
 
-  const handleFavoriteToggle = (characterId: number) => {
-    const newFavorites = favorites.filter((id) => id !== characterId);
-    setFavorites(newFavorites);
+  const handleFavoriteToggle = async (characterId: number) => {
+    await toggleFavorite(characterId);
     if (selectedCharacter?._id === characterId) {
       setOpenDialog(false);
       setSelectedCharacter(null);
@@ -84,9 +85,15 @@ const FavoritosPage: React.FC = () => {
         </Typography>
       </Box>
 
+        {!authLoading && !profile && (
+          <Alert severity="info" sx={{ mb: 2, borderRadius: 2 }}>
+            Inicia sesión para guardar y sincronizar tus favoritos.
+          </Alert>
+        )}
+
       {favorites.length === 0 ? (
         <Alert severity="info" sx={{ borderRadius: 2 }}>
-          No tienes personajes favoritos aún. Agrega alguno desde la sección de Inicio.
+            No tienes personajes favoritos aún. Agrega alguno desde la sección de Inicio.
         </Alert>
       ) : (
         <>
@@ -186,7 +193,9 @@ const FavoritosPage: React.FC = () => {
               <Button
                 variant="contained"
                 color="error"
-                onClick={() => handleFavoriteToggle(selectedCharacter._id)}
+                onClick={async () => {
+                  await handleFavoriteToggle(selectedCharacter._id);
+                }}
                 sx={{ borderRadius: 2 }}
               >
                 Eliminar de Favoritos

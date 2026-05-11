@@ -21,7 +21,7 @@ import TvIcon from '@mui/icons-material/Tv';
 import disneyAPI from '../../services/disneyAPI';
 import type { DisneyCharacter } from '../../types';
 import CharacterCard from '../../components/CharacterCard';
-import { useLocalStorage } from '../../hooks/useLocalStorage';
+import { useAuth } from '../../context/AuthContext';
 
 const InicioPage: React.FC = () => {
   const [characters, setCharacters] = useState<DisneyCharacter[]>([]);
@@ -32,17 +32,27 @@ const InicioPage: React.FC = () => {
   const [currentPage, setCurrentPage] = useState(1);
   const [selectedCharacter, setSelectedCharacter] = useState<DisneyCharacter | null>(null);
   const [openDialog, setOpenDialog] = useState(false);
-  const [favorites, setFavorites] = useLocalStorage<number[]>('favorites', []);
-  const [searchHistory, setSearchHistory] = useLocalStorage<Array<{ query: string; timestamp: number }>>(
-    'searchHistory',
-    []
-  );
+  const { profile, recordSearch, toggleFavorite, loading: authLoading } = useAuth();
+
+  const favorites = profile?.favorites ?? [];
 
   const itemsPerPage = 12;
 
   useEffect(() => {
     loadCharacters(1);
   }, []);
+
+  useEffect(() => {
+    if (!searchQuery.trim()) {
+      return undefined;
+    }
+
+    const timeoutId = window.setTimeout(() => {
+      recordSearch(searchQuery);
+    }, 500);
+
+    return () => window.clearTimeout(timeoutId);
+  }, [recordSearch, searchQuery]);
 
   useEffect(() => {
     if (searchQuery.trim()) {
@@ -62,12 +72,8 @@ const InicioPage: React.FC = () => {
     setError(null);
     try {
       const response = await disneyAPI.getAllCharacters(page);
-      const charactersWithFavorites = response.data.map((char) => ({
-        ...char,
-        isFavorite: favorites.includes(char._id),
-      }));
-      setCharacters(charactersWithFavorites);
-      setFilteredCharacters(charactersWithFavorites);
+      setCharacters(response.data);
+      setFilteredCharacters(response.data);
     } catch (err) {
       setError('Error al cargar los personajes. Intenta de nuevo.');
       console.error(err);
@@ -78,27 +84,10 @@ const InicioPage: React.FC = () => {
 
   const handleSearch = (query: string) => {
     setSearchQuery(query);
-    if (query.trim()) {
-      const newHistory = [
-        { query: query.trim(), timestamp: Date.now() },
-        ...searchHistory.filter((h) => h.query !== query.trim()),
-      ].slice(0, 10);
-      setSearchHistory(newHistory);
-    }
   };
 
-  const handleFavoriteToggle = (characterId: number) => {
-    const newFavorites = favorites.includes(characterId)
-      ? favorites.filter((id) => id !== characterId)
-      : [...favorites, characterId];
-
-    setFavorites(newFavorites);
-
-    const updated = characters.map((char) => ({
-      ...char,
-      isFavorite: newFavorites.includes(char._id),
-    }));
-    setCharacters(updated);
+  const handleFavoriteToggle = async (characterId: number) => {
+    await toggleFavorite(characterId);
   };
 
   const handleViewDetails = (character: DisneyCharacter) => {
@@ -108,8 +97,15 @@ const InicioPage: React.FC = () => {
 
   const startIndex = (currentPage - 1) * itemsPerPage;
   const endIndex = startIndex + itemsPerPage;
-  const paginatedCharacters = filteredCharacters.slice(startIndex, endIndex);
   const totalPages = Math.ceil(filteredCharacters.length / itemsPerPage);
+  const charactersWithState = filteredCharacters.map((character) => ({
+    ...character,
+    isFavorite: favorites.includes(character._id),
+  }));
+  const paginatedCharacters = charactersWithState.slice(startIndex, endIndex);
+  const selectedCharacterIsFavorite = selectedCharacter
+    ? favorites.includes(selectedCharacter._id)
+    : false;
 
   return (
     <Box>
@@ -153,6 +149,12 @@ const InicioPage: React.FC = () => {
           }}
         />
       </Box>
+
+      {!authLoading && !profile && (
+        <Alert severity="info" sx={{ mb: 2, borderRadius: 2 }}>
+          Inicia sesión en la sección Usuario para guardar favoritos y búsquedas por cuenta.
+        </Alert>
+      )}
 
       {error && (
         <Alert severity="error" sx={{ mb: 2, borderRadius: 2 }}>
@@ -280,14 +282,14 @@ const InicioPage: React.FC = () => {
               </Button>
               <Button
                 variant="contained"
-                color={selectedCharacter.isFavorite ? 'error' : 'primary'}
-                onClick={() => {
-                  handleFavoriteToggle(selectedCharacter._id);
+                color={selectedCharacterIsFavorite ? 'error' : 'primary'}
+                onClick={async () => {
+                  await handleFavoriteToggle(selectedCharacter._id);
                   setOpenDialog(false);
                 }}
                 sx={{ borderRadius: 2 }}
               >
-                {selectedCharacter.isFavorite ? 'Quitar de Favoritos' : 'Agregar a Favoritos'}
+                {selectedCharacterIsFavorite ? 'Quitar de Favoritos' : 'Agregar a Favoritos'}
               </Button>
             </DialogActions>
           </>

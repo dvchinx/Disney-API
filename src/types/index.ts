@@ -26,11 +26,13 @@ export interface SearchHistory {
 }
 
 export interface UserProfile {
-  username: string;
-  email?: string;
+  uid: string;
+  displayName: string;
+  email: string;
   favorites: number[];
   searchHistory: SearchHistory[];
   createdAt: number;
+  updatedAt: number;
 }
 
 export interface ApiResponse {
